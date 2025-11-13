@@ -8,6 +8,13 @@ body, html {
     padding-top: 37px;
 }
 
+/* 可调整播放器尺寸的 CSS 变量（默认尺寸 668x376，宽度不超过 668px） */
+:root {
+    --player-max-width: 668px; /* 播放器最大宽度 */
+    --player-aspect-ratio: 668/376; /* 宽高比，保证高度随宽度自动计算 */
+    --player-max-height: 100vh; /* 最大高度，避免溢出视口 */
+}
+
 /* Critical header and navigation styles */
 .player-header {
     position: relative;
@@ -39,7 +46,7 @@ body, html {
 .player-placeholder {
     width: 100% !important;
     height: auto !important;
-    aspect-ratio: 16/9 !important;
+    aspect-ratio: var(--player-aspect-ratio) !important;
     background-color: #1f2937 !important;
     position: relative !important;
     display: block !important;
@@ -49,8 +56,8 @@ body, html {
 
 .player-loading-container {
     width: 100% !important;
-    height: 0 !important;
-    padding-bottom: 56.25% !important;
+    height: auto !important;
+    aspect-ratio: var(--player-aspect-ratio) !important;
     position: relative !important;
     background-color: #1f2937 !important;
     border-radius: 8px !important;
@@ -117,7 +124,7 @@ div.player-loading-text {
     width: 100% !important;
     height: 100% !important;
     min-height: 150px !important;
-    max-height: 100vh !important;
+    max-height: var(--player-max-height) !important;
     background: #000 !important;
     object-fit: contain !important;
     display: block !important;
@@ -139,13 +146,20 @@ div.player-loading-text {
 
 .player-container {
     width: 100%;
-    max-width: 1000px;
+    max-width: var(--player-max-width);
     margin: 0 auto;
+    box-sizing: border-box;
+    padding-left: 12px;
+    padding-right: 12px;
 }
 
 #player {
     width: 100%;
-    height: 60vh; /* 视频播放器高度 */
+    max-width: var(--player-max-width);
+    aspect-ratio: var(--player-aspect-ratio);
+    height: auto; /* 高度由宽度与比例决定 */
+    display: block;
+    margin: 0 auto; /* 居中 */
 }
 
 .loading-container {
@@ -370,6 +384,18 @@ input:checked + .slider:before {
     color: #a67c2d;
     vertical-align: middle;
     transition: transform 0.3s;
+}
+
+/* 自定义宽度输入样式 */
+#playerSizeControls input[type="text"] {
+    min-width: 110px;
+    max-width: 180px;
+    border-radius: 6px;
+    padding: 6px 8px;
+}
+
+#playerSizeControls button {
+    white-space: nowrap;
 }
 
 /* 新增：移动端响应式样式 */

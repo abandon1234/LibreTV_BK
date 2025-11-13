@@ -54,6 +54,134 @@ function goBack(event) {
     window.history.back();
 }
 
+// ========== Player Size Controls ==========
+function setPlayerCssVars(maxWidth, aspectRatio) {
+    if (maxWidth) document.documentElement.style.setProperty('--player-max-width', maxWidth);
+    if (aspectRatio) document.documentElement.style.setProperty('--player-aspect-ratio', aspectRatio);
+}
+
+function applyPlayerSizePreset(preset) {
+    switch (preset) {
+        case 'large':
+            setPlayerCssVars('1000px', '16/9');
+            break;
+        case 'full':
+            setPlayerCssVars('100%', '16/9');
+            break;
+        case 'default':
+        default:
+            setPlayerCssVars('668px', '668/376');
+            break;
+    }
+    try {
+        localStorage.setItem('playerSizePreset', preset);
+    } catch (e) {}
+    // 更新按钮样式
+    updatePlayerSizeButtons(preset);
+}
+
+function updatePlayerSizeButtons(activePreset) {
+    const controls = document.querySelectorAll('#playerSizeControls [data-size]');
+    controls.forEach(btn => {
+        if (btn.dataset.size === activePreset) {
+            btn.classList.add('bg-blue-600');
+            btn.classList.remove('bg-[#222]');
+        } else {
+            btn.classList.remove('bg-blue-600');
+            btn.classList.add('bg-[#222]');
+        }
+    });
+}
+
+function initPlayerSizeControls() {
+    const container = document.getElementById('playerSizeControls');
+    if (!container) return;
+    container.querySelectorAll('[data-size]').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const preset = this.dataset.size;
+            applyPlayerSizePreset(preset);
+        });
+    });
+}
+
+// 初始化自定义宽度输入与重置按钮
+function initPlayerCustomControls() {
+    const input = document.getElementById('playerCustomWidthInput');
+    const applyBtn = document.getElementById('playerCustomApply');
+    const resetBtn = document.getElementById('playerCustomReset');
+    if (!input || !applyBtn || !resetBtn) return;
+
+    // 回车或点击应用
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            applyCustomWidthFromInput();
+        }
+    });
+    applyBtn.addEventListener('click', applyCustomWidthFromInput);
+
+    // 重置到默认
+    resetBtn.addEventListener('click', () => {
+        try {
+            localStorage.removeItem('playerSizePreset');
+            localStorage.removeItem('playerCustomWidth');
+        } catch (e) {}
+        applyPlayerSizePreset('default');
+        // 清空输入框
+        input.value = '';
+    });
+}
+
+function applyCustomWidthFromInput() {
+    const input = document.getElementById('playerCustomWidthInput');
+    if (!input) return;
+    const raw = input.value.trim();
+    if (!raw) return;
+
+    // 支持像 '800'（当作px）、'800px'、'100%'
+    let value = raw;
+    if (/^\d+$/.test(raw)) {
+        value = raw + 'px';
+    }
+
+    // 验证 px 数值合理性（如果以 px 结尾）
+    const pxMatch = value.match(/^(\d+)px$/);
+    if (pxMatch) {
+        const n = parseInt(pxMatch[1], 10);
+        if (n < 200 || n > 4000) {
+            showToast && showToast('宽度应在 200 - 4000 px 之间', 'error');
+            return;
+        }
+    }
+
+    // 应用为自定义预设
+    try {
+        localStorage.setItem('playerCustomWidth', value);
+        localStorage.setItem('playerSizePreset', 'custom');
+    } catch (e) {}
+    setPlayerCssVars(value, null);
+    updatePlayerSizeButtons('custom');
+}
+
+function restorePlayerSizeFromStorage() {
+    try {
+        const preset = localStorage.getItem('playerSizePreset') || 'default';
+        if (preset === 'custom') {
+            const custom = localStorage.getItem('playerCustomWidth');
+            if (custom) {
+                setPlayerCssVars(custom, null);
+                updatePlayerSizeButtons('custom');
+                const input = document.getElementById('playerCustomWidthInput');
+                if (input) input.value = custom.replace(/px$/,'');
+                return;
+            }
+        }
+        applyPlayerSizePreset(preset);
+    } catch (e) {
+        applyPlayerSizePreset('default');
+    }
+}
+
 // 页面加载时保存当前URL到localStorage，作为返回目标
 window.addEventListener('load', function () {
     // 保存前一页面URL
@@ -1445,18 +1573,28 @@ function renderResourceInfoBar() {
     const currentSource = urlParams.get('source') || '';
     
     // 显示临时加载状态
-    container.innerHTML = `
-      <div class="resource-info-bar-left flex">
-        <span>加载中...</span>
-        <span class="resource-info-bar-videos">-</span>
-      </div>
-      <button class="resource-switch-btn flex" id="switchResourceBtn" onclick="showSwitchResourceModal()">
-        <span class="resource-switch-icon">
-          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 4v16m0 0l-6-6m6 6l6-6" stroke="#a67c2d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </span>
-        切换资源
-      </button>
-    `;
+        container.innerHTML = `
+            <div class="resource-info-bar-left flex">
+                <span>加载中...</span>
+                <span class="resource-info-bar-videos">-</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <div id="playerSizeControls" class="flex items-center gap-1">
+                    <button class="px-2 py-1 bg-[#222] hover:bg-[#333] border border-[#333] text-white rounded-lg text-sm" data-size="default">默认 668×376</button>
+                    <button class="px-2 py-1 bg-[#222] hover:bg-[#333] border border-[#333] text-white rounded-lg text-sm" data-size="large">大</button>
+                    <button class="px-2 py-1 bg-[#222] hover:bg-[#333] border border-[#333] text-white rounded-lg text-sm" data-size="full">全宽</button>
+                    <input id="playerCustomWidthInput" type="text" placeholder="自定义宽度(px)" class="px-2 py-1 rounded-lg text-sm bg-[#111] border border-[#333] text-white" />
+                    <button id="playerCustomApply" class="px-2 py-1 bg-[#222] hover:bg-[#333] border border-[#333] text-white rounded-lg text-sm">应用</button>
+                    <button id="playerCustomReset" class="px-2 py-1 bg-[#222] hover:bg-[#333] border border-[#333] text-white rounded-lg text-sm">重置</button>
+                </div>
+                <button class="resource-switch-btn flex" id="switchResourceBtn" onclick="showSwitchResourceModal()">
+                    <span class="resource-switch-icon">
+                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 4v16m0 0l-6-6m6 6l6-6" stroke="#a67c2d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </span>
+                    切换资源
+                </button>
+            </div>
+        `;
 
     // 查找当前源名称，从 API_SITES 和 custom_api 中查找即可
     let resourceName = currentSource
@@ -1471,18 +1609,38 @@ function renderResourceInfoBar() {
         }
     }
 
-    container.innerHTML = `
-      <div class="resource-info-bar-left flex">
-        <span>${resourceName}</span>
-        <span class="resource-info-bar-videos">${currentEpisodes.length} 个视频</span>
-      </div>
-      <button class="resource-switch-btn flex" id="switchResourceBtn" onclick="showSwitchResourceModal()">
-        <span class="resource-switch-icon">
-          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 4v16m0 0l-6-6m6 6l6-6" stroke="#a67c2d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </span>
-        切换资源
-      </button>
-    `;
+        container.innerHTML = `
+            <div class="resource-info-bar-left flex">
+                <span>${resourceName}</span>
+                <span class="resource-info-bar-videos">${currentEpisodes.length} 个视频</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <div id="playerSizeControls" class="flex items-center gap-1">
+                    <button class="px-2 py-1 bg-[#222] hover:bg-[#333] border border-[#333] text-white rounded-lg text-sm" data-size="default">默认 668×376</button>
+                    <button class="px-2 py-1 bg-[#222] hover:bg-[#333] border border-[#333] text-white rounded-lg text-sm" data-size="large">大</button>
+                    <button class="px-2 py-1 bg-[#222] hover:bg-[#333] border border-[#333] text-white rounded-lg text-sm" data-size="full">全宽</button>
+                    <input id="playerCustomWidthInput" type="text" placeholder="自定义宽度(px)" class="px-2 py-1 rounded-lg text-sm bg-[#111] border border-[#333] text-white" />
+                    <button id="playerCustomApply" class="px-2 py-1 bg-[#222] hover:bg-[#333] border border-[#333] text-white rounded-lg text-sm">应用</button>
+                    <button id="playerCustomReset" class="px-2 py-1 bg-[#222] hover:bg-[#333] border border-[#333] text-white rounded-lg text-sm">重置</button>
+                </div>
+                <button class="resource-switch-btn flex" id="switchResourceBtn" onclick="showSwitchResourceModal()">
+                    <span class="resource-switch-icon">
+                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 4v16m0 0l-6-6m6 6l6-6" stroke="#a67c2d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </span>
+                    切换资源
+                </button>
+            </div>
+        `;
+
+        // 初始化尺寸控制事件
+        setTimeout(() => {
+            try {
+                initPlayerSizeControls();
+                initPlayerCustomControls();
+                restorePlayerSizeFromStorage();
+            } catch (e) {
+            }
+        }, 0);
 }
 
 // 测试视频源速率的函数
